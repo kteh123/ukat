@@ -6,6 +6,8 @@ from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
 from tqdm import tqdm
 
+from .. import coreg
+
 
 class Model:
     def __init__(self, pixel_array, x, eq, mask=None, multithread=True):
@@ -88,6 +90,12 @@ class Model:
             return mask_list
 
 
+def fit_mdr_image(model):
+    while not converged:
+        mapper = fit_image(model)
+        coreg.fit_deformation_field(model.pixel_array, mapper.fit)
+    return
+
 def fit_image(model):
     """
     Fit an image to a relaxometry curve fitting model
@@ -130,7 +138,9 @@ def fit_image(model):
     error_list = [error_array[:, p].reshape(model.map_shape) for p in range(
         model.n_params)]
     r2 = np.array([result[2] for result in results]).reshape(model.map_shape)
-    return popt_list, error_list, r2
+    fit = np.array([result[3] for result in results]).reshape(
+        model.pixel_array.shape)
+    return popt_list, error_list, r2, fit
 
 
 def fit_signal(sig, x, p0, mask, model):
@@ -173,6 +183,7 @@ def fit_signal(sig, x, p0, mask, model):
         popt = np.zeros(model.n_params)
         pcov = np.zeros((model.n_params, model.n_params))
         r2 = -1E6
+        fit_sig = np.zeros(len(sig))
 
     error = np.sqrt(np.diag(pcov))
-    return popt, error, r2
+    return popt, error, r2, fit_sig

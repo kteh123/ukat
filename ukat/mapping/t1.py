@@ -17,7 +17,7 @@ class T1Model(fitting.Model):
         pixel_array : np.ndarray
             An array containing the signal from each voxel at each echo
             time with the last dimension being time i.e. the array needed to
-            generate a 3D T1 map would have dimensions [x, y, z, TE].
+            generate a 3D T1 map would have dimensions [x, y, z, TI].
         ti : np.ndarray
             An array of the inversion times used for the last dimension of the
             pixel_array. In milliseconds.
@@ -119,7 +119,8 @@ class T1:
     """
 
     def __init__(self, pixel_array, inversion_list, affine, tss=0, tss_axis=-2,
-                 mask=None, parameters=2, molli=False, multithread=True):
+                 mask=None, parameters=2, molli=False, multithread=True,
+                 mdr=True):
         """Initialise a T1 class instance.
 
         Parameters
@@ -227,7 +228,10 @@ class T1:
         fitting_model = T1Model(self.pixel_array, self.inversion_list,
                                 self.parameters, self.mask, self.tss,
                                 self.tss_axis, self.multithread)
-        popt, error, r2 = fitting.fit_image(fitting_model)
+        if self.mdr:
+            popt, error, r2 = fitting.fit_mdr_image(fitting_model)
+        else:
+            popt, error, r2 = fitting.fit_image(fitting_model)
         self.t1_map = popt[0]
         self.m0_map = popt[1]
         self.t1_err = error[0]
