@@ -5,13 +5,39 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 #import dask
-import SimpleITK as itk
+# import SimpleITK as itk
+import itk
 import multiprocessing
 #from multiprocessing import shared_memory
 #import psutil
 import gc
 
-def _coregister(target, source, elastix_model_parameters, spacing, log, mask):
+def default_elastix_parameters():
+    # See here for default bspline settings and explanation of parameters
+    # https://github.com/SuperElastix/ElastixModelZoo/tree/master/models%2Fdefault
+    param_obj = itk.ParameterObject.New()
+    parameter_map_bspline = param_obj.GetDefaultParameterMap('bspline')
+    param_obj.AddParameterMap(parameter_map_bspline) 
+    param_obj.SetParameter("FixedImagePyramid", "FixedRecursiveImagePyramid") # "FixedSmoothingImagePyramid"
+    param_obj.SetParameter("MovingImagePyramid", "MovingRecursiveImagePyramid") # "MovingSmoothingImagePyramid"
+    param_obj.SetParameter("Metric", "AdvancedMeanSquares")
+    param_obj.SetParameter("FinalGridSpacingInPhysicalUnits", "50.0")
+    param_obj.SetParameter("ErodeMask", "false")
+    param_obj.SetParameter("ErodeFixedMask", "false")
+    #param_obj.SetParameter("NumberOfResolutions", "4") 
+    #param_obj.SetParameter("MaximumNumberOfIterations", "500") # down from 500
+    param_obj.SetParameter("MaximumStepLength", "0.1") 
+    #param_obj.SetParameter("NumberOfSpatialSamples", "2048")
+    #param_obj.SetParameter("BSplineInterpolationOrder", "1")
+    #param_obj.SetParameter("FinalBSplineInterpolationOrder", "3")
+    #param_obj.SetParameter("DefaultPixelValue", "0")
+    param_obj.SetParameter("WriteResultImage", "false")
+    
+    return param_obj
+
+#Taget and source either 2d (x,y) / 3d (x,y,z)
+#Spacing needs to be either single number or list of 2/3 
+def _coregister(target, source, elastix_model_parameters, spacing):
     """
     Coregister two arrays and return coregistered + deformation field 
     """
@@ -57,56 +83,3 @@ def _coregister(target, source, elastix_model_parameters, spacing, log, mask):
         deformation_field = np.reshape(deformation_field,(shape_source[0], shape_source[1], shape_source[2], 3)) 
 
     return coregistered, deformation_field
-
-def _elastix2dict(elastix_model_parameters):
-    """
-    Hack to allow parallel processing
-    """
-    list_dictionaries_parameters = []
-    for index in range(elastix_model_parameters.GetNumberOfParameterMaps()):
-        parameter_map = elastix_model_parameters.GetParameterMap(index)
-        one_parameter_map_dict = {}
-        for i in parameter_map:
-            one_parameter_map_dict[i] = parameter_map[i]
-        list_dictionaries_parameters.append(one_parameter_map_dict)
-    return list_dictionaries_parameters
-
-def _dict2elastix(list_dictionaries_parameters):
-    """
-    Hack to allow parallel processing
-    """
-    elastix_model_parameters = itk.ParameterObject.New()
-    for one_map in list_dictionaries_parameters:
-        elastix_model_parameters.AddParameterMap(one_map)
-    return elastix_model_parameters
-
-def get_elastix_parameters(self, output_directory=os.getcwd(),
-                               base_file_name='Elastix_Parameters',
-                               export=False):
-        """
-        Returns a itk.ParameterObject with the elastix registration parameters.
-        Parameters
-        ----------
-        output_directory : string, optional
-            Path to the folder that will contain the TXT file to be saved,
-            if export=True.
-        base_file_name : string, optional
-            Filename of the exported TXT. This code appends the extension.
-            Eg., base_file_name = 'Elastix_Parameters' will result in
-            'Elastix_Parameters.txt'.
-        export : bool, optional
-            If True (default is False), the elastix registration parameters
-            are saved as "Elastix_Parameters.txt" in the 'output_directory'.
-        Returns
-        -------
-        self._elastix_params : itk.ParameterObject
-            Private attribute with the elastix registration parameters
-            that is returned if this getter function is called.
-        """
-        if export:
-            file_path = os.path.join(output_directory,
-                                     base_file_name + ".txt")
-            text_file = open(file_path, "w")
-            print(self._elastix_params, file=text_file)
-            text_file.close()
-        return self._elastix_params
