@@ -2,8 +2,8 @@ import csv
 import os
 import nibabel as nib
 import numpy as np
-
-from segment import Tkv
+# KT M1 mac problem
+# from segment import Tkv
 
 
 class Segmentation(nib.Nifti1Image):

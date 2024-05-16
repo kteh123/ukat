@@ -5,14 +5,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 #import dask
-import SimpleITK as itk
-# import itk
+import itk 
 import multiprocessing
 #from multiprocessing import shared_memory
 #import psutil
 import gc
 
-def default_elastix_parameters():
+def default_elastix_parameters(grid_spacing=50):
     # See here for default bspline settings and explanation of parameters
     # https://github.com/SuperElastix/ElastixModelZoo/tree/master/models%2Fdefault
     param_obj = itk.ParameterObject.New()
@@ -21,7 +20,7 @@ def default_elastix_parameters():
     param_obj.SetParameter("FixedImagePyramid", "FixedRecursiveImagePyramid") # "FixedSmoothingImagePyramid"
     param_obj.SetParameter("MovingImagePyramid", "MovingRecursiveImagePyramid") # "MovingSmoothingImagePyramid"
     param_obj.SetParameter("Metric", "AdvancedMeanSquares")
-    param_obj.SetParameter("FinalGridSpacingInPhysicalUnits", "50.0")
+    param_obj.SetParameter("FinalGridSpacingInPhysicalUnits", str(float(grid_spacing)))
     param_obj.SetParameter("ErodeMask", "false")
     param_obj.SetParameter("ErodeFixedMask", "false")
     #param_obj.SetParameter("NumberOfResolutions", "4") 
@@ -91,6 +90,15 @@ def coregister(target, source, elastix_model_parameters, spacing, other_sources=
     if other_sources is not None:
         return coregistered, deformation_field, coreg
     return coregistered, deformation_field
+
+
+def coregister_all(source, target, params, pixel_spacing):
+    
+    coreg = np.zeros(source.shape)
+    defo = np.zeros(source.shape + (2,))
+    for k in range(source.shape[-1]):
+        coreg[...,k], defo[...,k,:] = coregister(target[...,k], source[...,k], params, pixel_spacing) 
+    return coreg, defo  
 
 def mdr(array, pixel_spacing, signal_model, *args, other=None, max_it=5, largest_deformation=1):
     # (x,y,t)

@@ -4,7 +4,8 @@ import os
 import warnings
 
 from . import fitting
-
+from . coreg.coregistration import default_elastix_parameters, coregister_all
+from tqdm import tqdm
 
 class T1Model(fitting.Model):
     def __init__(self, pixel_array, ti, parameters=2, mask=None, tss=0,
@@ -390,6 +391,51 @@ class T1:
         fit_signal = fit_signal.reshape((*self.shape, self.n_ti))
         return fit_signal
 
+    #MDR
+    def correct_motion(self, maxit=5, maxdefo=1, pixel_spacing=1, grid_spacing=50):
+        # pixel spacing iand gird spacing n units if mm
+        target = self.get_fit_signal()
+        params = default_elastix_parameters(grid_spacing=grid_spacing)
+        for it in range(maxit):
+            #Iteration Number
+            msg = ', fitting signal model (iteration ' + str(it+1) + ')'
+            print(msg)
+
+            shape = self.pixel_array
+            pd = np.prod(shape[:-1]), len(shape)-1, shape[-1]
+            nt = pd[-1]
+
+            # for t in tqdm(range(it), desc=msg): 
+            coreg, defo = coregister_all(self.pixel_array, target, params, pixel_spacing) 
+
+            # coreg, defo = coregister_all(self.pixel_array, target, params, pixel_spacing) 
+            self.fitting_model = T1Model(self.pixel_array, self.inversion_list,
+                                        self.parameters, self.mask, self.tss,
+                                        self.tss_axis, self.multithread)
+            popt, error, r2  = fitting.fit_image(self.fitting_model)
+            self.t1_map = popt[0]
+            self.m0_map = popt[1]
+            self.t1_err = error[0]
+            self.m0_err = error[1]
+            self.r2 = r2
+
+            if self.parameters == 3:
+                self.eff_map = popt[2]
+                self.eff_err = error[2]
+
+            target = self.get_fit_signal()
+            if np.amax(np.linalg.norm(defo, axis=-1)) < maxdefo:
+                return coreg, defo
+        return coreg, defo
+    
+    #MDR
+    def _npdt(self): 
+        """
+        (nr of pixels, nr of dimensions, nr of time points)
+        """
+        shape = self.pixel_array
+        return np.prod(shape[:-1]), len(shape)-1, shape[-1]
+
 
 def two_param_abs_eq(t, t1, m0):
     """
@@ -412,7 +458,6 @@ def two_param_abs_eq(t, t1, m0):
     with np.errstate(divide='ignore'):
         signal = np.abs(m0 * (1 - 2 * np.exp(-t / t1)))
     return signal
-
 
 def two_param_eq(t, t1, m0):
     """
@@ -530,3 +575,5 @@ def magnitude_correct(pixel_array):
     sign = -(phase_offset / np.abs(phase_offset))
     corrected_array = sign * np.abs(pixel_array)
     return corrected_array
+
+

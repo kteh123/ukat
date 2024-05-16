@@ -1,6 +1,9 @@
 # Visual Studio Code editor
 .vscode/
 
+# Virtual Env
+.venv/
+
 # Pycharm
 .idea/
 
